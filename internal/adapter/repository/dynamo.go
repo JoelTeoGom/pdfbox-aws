@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"pdf-box-aws/internal/adapter/repository"
 	"pdf-box-aws/internal/domain"
 	"pdf-box-aws/internal/handler"
 
@@ -60,9 +59,22 @@ func (r *DynamoDbRepo) Get(ctx context.Context, userID, fileID string) (*domain.
 }
 
 func (r *DynamoDbRepo) Save(ctx context.Context, file *domain.File) error {
-
-	// TODO: implement PutItem, marshalling domain.File into DynamoDB attributes.
-	return errors.New("not implemented")
+	if file == nil {
+		return errors.New("file is nil")
+	}
+	item, err := attributevalue.MarshalMap(FromDomainFile(file))
+	if err != nil {
+		return fmt.Errorf("dynamo marshal: %w", err)
+	}
+	out, err := r.client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName:              aws.String(r.tableName),
+		Item:                   item,
+		ReturnConsumedCapacity: types.ReturnConsumedCapacityTotal,
+	})
+	if out == nil || err != nil {
+		return fmt.Errorf("dynamo save: %w", err)
+	}
+	return nil
 }
 
 func (r *DynamoDbRepo) List(ctx context.Context, userID, cursor string, limit int) ([]*domain.File, string, error) {
@@ -79,11 +91,15 @@ func (r *DynamoDbRepo) List(ctx context.Context, userID, cursor string, limit in
 	}
 
 	if cursor != "" {
-		in.ExclusiveStartKey = repository.DecodeCursor(cursor)
+		if decodedKey, err := DecodeCursor(cursor); err != nil {
+			return nil, "", fmt.Errorf("decode cursor: %w", err)
+		} else {
+			in.ExclusiveStartKey = decodedKey
+		}
 	}
 
 	out, err := r.client.Query(ctx, in)
-	next := repository.EncodeCursor(out.LastEvaluatedKey) // "" si no hay más
+	next := EncodeCursor(out.LastEvaluatedKey) // "" si no hay más
 	if err != nil {
 		return nil, "", fmt.Errorf("dynamo query: %w", err)
 	}
@@ -99,7 +115,22 @@ func (r *DynamoDbRepo) List(ctx context.Context, userID, cursor string, limit in
 }
 
 func (r *DynamoDbRepo) MarkDeleted(ctx context.Context, userID, fileID string) error {
-	// TODO: implement UpdateItem setting Status to domain.StatusDeleted.
-	// Return domain.ErrNotFound when the item does not exist.
-	return errors.New("not implemented")
+	out, err := r.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: aws.String(r.tableName),
+		Key: map[string]types.AttributeValue{
+			"PK": &types.AttributeValueMemberS{Value: "USER#" + userID},
+			"SK": &types.AttributeValueMemberS{Value: "FILE#" + fileID},
+		},
+		UpdateExpression: aws.String("SET #status = :status"),
+		ExpressionAttributeNames: map[string]string{
+			"#status": "status",
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":status": &types.AttributeValueMemberS{Value: string(domain.StatusDeleted)},
+		},
+	})
+	if out == nil || err != nil {
+		return fmt.Errorf("dynamo mark deleted: %w", err)
+	}
+	return nil
 }

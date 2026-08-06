@@ -27,3 +27,15 @@ func (f *fileItem) ToDomainFile() *domain.File {
 		CreatedAt: time.Unix(f.CreatedAt, 0),
 	}
 }
+
+func FromDomainFile(f *domain.File) *fileItem {
+	return &fileItem{
+		PK:        "USER#" + f.OwnerID,
+		SK:        "FILE#" + f.ID,
+		S3Key:     f.S3Key,
+		Filename:  f.Filename,
+		Size:      f.Size,
+		Status:    string(f.Status),
+		CreatedAt: f.CreatedAt.Unix(),
+	}
+}

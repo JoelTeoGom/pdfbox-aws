@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/aws/aws-lambda-go/events"
 )
@@ -60,9 +61,16 @@ func (r *Router) handleGetFile(ctx context.Context, userID string, req events.AP
 		}, nil
 	}
 
+	body, err := json.Marshal(file)
+	if err != nil {
+		return &events.APIGatewayV2HTTPResponse{
+			StatusCode: 500,
+			Body:       "Internal Server Error",
+		}, nil
+	}
 	return &events.APIGatewayV2HTTPResponse{
 		StatusCode: 200,
-		Body:       file.Content, // Assuming file.Content is a string. Adjust as necessary.
+		Body:       string(body),
 	}, nil
 }
 
