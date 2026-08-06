@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	"crisplite/internal/domain"
+	"pdf-box-aws/internal/domain"
 
 	"fmt"
 	"math/rand"

@@ -19,7 +19,7 @@ func NewRouter(api *API, auth TokenValidator) *Router {
 }
 func (r *Router) handleRequest(ctx context.Context, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
 	// Validate the JWT token from the request headers
-	userID, err := r.auth.ValidateToken(req.Headers["Authorization"])
+	claims, err := r.auth.ValidateToken(req.Headers["Authorization"])
 	if err != nil {
 		return &events.APIGatewayV2HTTPResponse{
 			StatusCode: 401,
@@ -29,13 +29,13 @@ func (r *Router) handleRequest(ctx context.Context, req events.APIGatewayV2HTTPR
 
 	switch req.RouteKey {
 	case "GET /files/{fileID}":
-		return r.handleGetFile(ctx, userID, req)
+		return r.handleGetFile(ctx, claims.UserID, req)
 	case "POST /files":
-		return r.handleUploadFile(ctx, userID, req)
+		return r.handleUploadFile(ctx, claims.UserID, req)
 	case "GET /files":
-		return r.handleListFiles(ctx, userID, req)
+		return r.handleListFiles(ctx, claims.UserID, req)
 	case "DELETE /files/{fileID}":
-		return r.handleDeleteFile(ctx, userID, req)
+		return r.handleDeleteFile(ctx, claims.UserID, req)
 	default:
 		return &events.APIGatewayV2HTTPResponse{
 			StatusCode: 404,
@@ -63,5 +63,37 @@ func (r *Router) handleGetFile(ctx context.Context, userID string, req events.AP
 	return &events.APIGatewayV2HTTPResponse{
 		StatusCode: 200,
 		Body:       file.Content, // Assuming file.Content is a string. Adjust as necessary.
+	}, nil
+}
+
+func (r *Router) handleUploadFile(ctx context.Context, userID string, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
+	//TODO : Implement file upload logic
+	return &events.APIGatewayV2HTTPResponse{
+		StatusCode: 501,
+		Body:       "Not Implemented",
+	}, nil
+}
+
+func (r *Router) handleListFiles(ctx context.Context, userID string, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
+	//TODO : Implement file listing logic
+	return &events.APIGatewayV2HTTPResponse{
+		StatusCode: 501,
+		Body:       "Not Implemented",
+	}, nil
+}
+
+func (r *Router) handleDeleteFile(ctx context.Context, userID string, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
+	fileID := req.PathParameters["fileID"]
+	err := r.API.MarkDeleted(ctx, userID, fileID)
+	if err != nil {
+		return &events.APIGatewayV2HTTPResponse{
+			StatusCode: 500,
+			Body:       "Internal Server Error",
+		}, nil
+	}
+
+	return &events.APIGatewayV2HTTPResponse{
+		StatusCode: 200,
+		Body:       "File Deleted",
 	}, nil
 }

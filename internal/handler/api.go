@@ -26,7 +26,7 @@ type FileRepository interface {
 	MarkDeleted(ctx context.Context, userID, fileID string) error
 }
 type TokenValidator interface {
-	ValidateToken(token string) (string, error)
+	ValidateToken(token string) (*domain.Claims, error)
 }
 
 type S3service interface {
@@ -35,4 +35,19 @@ type S3service interface {
 
 func (api *API) Get(ctx context.Context, userID, fileID string) (*domain.File, error) {
 	return api.repo.Get(ctx, userID, fileID)
+}
+
+func (api *API) Save(ctx context.Context, f *domain.File) error {
+	return api.repo.Save(ctx, f)
+}
+
+func (api *API) List(ctx context.Context, userID, cursor string, limit int) ([]*domain.File, string, error) {
+	return api.repo.List(ctx, userID, cursor, limit)
+}
+
+func (api *API) MarkDeleted(ctx context.Context, userID, fileID string) error {
+	if err := api.repo.MarkDeleted(ctx, userID, fileID); err != nil {
+		return err
+	}
+	return api.s3.DeleteFile(ctx, fileID)
 }
