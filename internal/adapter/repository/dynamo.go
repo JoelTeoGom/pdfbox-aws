@@ -1,17 +1,14 @@
-package store
+package repository
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log"
+	"pdf-box-aws/internal/domain"
+	"pdf-box-aws/internal/handler"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	ddbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-
-	"github.com/aws-samples/serverless-go-demo/types"
 )
 
 type DynamoDbRepo struct {
@@ -19,7 +16,7 @@ type DynamoDbRepo struct {
 	tableName string
 }
 
-var _ types.Store = (*DynamoDbRepo)(nil)
+var _ handler.FileRepository = (*DynamoDbRepo)(nil)
 
 func NewDynamoDBStore(ctx context.Context, tableName string) *DynamoDbRepo {
 	cfg, err := config.LoadDefaultConfig(ctx)
@@ -29,104 +26,31 @@ func NewDynamoDBStore(ctx context.Context, tableName string) *DynamoDbRepo {
 
 	client := dynamodb.NewFromConfig(cfg)
 
-	return &DynamoDBStore{
+	return &DynamoDbRepo{
 		client:    client,
 		tableName: tableName,
 	}
 }
 
-func (d *DynamoDBStore) All(ctx context.Context, next *string) (types.ProductRange, error) {
-	productRange := types.ProductRange{
-		Products: []types.Product{},
-	}
-
-	input := &dynamodb.ScanInput{
-		TableName: &d.tableName,
-		Limit:     aws.Int32(20),
-	}
-
-	if next != nil {
-		input.ExclusiveStartKey = map[string]ddbtypes.AttributeValue{
-			"id": &ddbtypes.AttributeValueMemberS{Value: *next},
-		}
-	}
-
-	result, err := d.client.Scan(ctx, input)
-
-	if err != nil {
-		return productRange, fmt.Errorf("failed to get items from DynamoDB: %w", err)
-	}
-
-	err = attributevalue.UnmarshalListOfMaps(result.Items, &productRange.Products)
-	if err != nil {
-		return productRange, fmt.Errorf("failed to unmarshal data from DynamoDB: %w", err)
-	}
-
-	if len(result.LastEvaluatedKey) > 0 {
-		if key, ok := result.LastEvaluatedKey["id"]; ok {
-			nextKey := key.(*ddbtypes.AttributeValueMemberS).Value
-			productRange.Next = &nextKey
-		}
-	}
-
-	return productRange, nil
+func (r *DynamoDbRepo) Get(ctx context.Context, userID, fileID string) (*domain.File, error) {
+	// TODO: implement GetItem against the DynamoDB table and map the item to domain.File.
+	// Return domain.ErrNotFound when the item does not exist.
+	return nil, errors.New("not implemented")
 }
 
-func (d *DynamoDBStore) Get(ctx context.Context, id string) (*types.Product, error) {
-	response, err := d.client.GetItem(ctx, &dynamodb.GetItemInput{
-		TableName: &d.tableName,
-		Key: map[string]ddbtypes.AttributeValue{
-			"id": &ddbtypes.AttributeValueMemberS{Value: id},
-		},
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to get item from DynamoDB: %w", err)
-	}
-
-	if len(response.Item) == 0 {
-		return nil, nil
-	}
-
-	product := types.Product{}
-	err = attributevalue.UnmarshalMap(response.Item, &product)
-
-	if err != nil {
-		return nil, fmt.Errorf("error getting item %w", err)
-	}
-
-	return &product, nil
+func (r *DynamoDbRepo) Save(ctx context.Context, file *domain.File) error {
+	// TODO: implement PutItem, marshalling domain.File into DynamoDB attributes.
+	return errors.New("not implemented")
 }
 
-func (d *DynamoDBStore) Put(ctx context.Context, product types.Product) error {
-	item, err := attributevalue.MarshalMap(&product)
-	if err != nil {
-		return fmt.Errorf("unable to marshal product: %w", err)
-	}
-
-	_, err = d.client.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: &d.tableName,
-		Item:      item,
-	})
-
-	if err != nil {
-		return fmt.Errorf("cannot put item: %w", err)
-	}
-
-	return nil
+func (r *DynamoDbRepo) List(ctx context.Context, userID, cursor string, limit int) ([]*domain.File, string, error) {
+	// TODO: implement Query by userID with pagination, decoding cursor into ExclusiveStartKey
+	// and encoding LastEvaluatedKey into the returned cursor.
+	return nil, "", errors.New("not implemented")
 }
 
-func (d *DynamoDBStore) Delete(ctx context.Context, id string) error {
-	_, err := d.client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
-		TableName: &d.tableName,
-		Key: map[string]ddbtypes.AttributeValue{
-			"id": &ddbtypes.AttributeValueMemberS{Value: id},
-		},
-	})
-
-	if err != nil {
-		return fmt.Errorf("can't delete item: %w", err)
-	}
-
-	return nil
+func (r *DynamoDbRepo) MarkDeleted(ctx context.Context, userID, fileID string) error {
+	// TODO: implement UpdateItem setting Status to domain.StatusDeleted.
+	// Return domain.ErrNotFound when the item does not exist.
+	return errors.New("not implemented")
 }

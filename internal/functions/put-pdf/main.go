@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"pdf-box-aws/internal/adapter/repository"
 
 	"github.com/aws/aws-lambda-go/lambda"
 )
@@ -13,8 +14,8 @@ func main() {
 		panic("Need TABLE environment variable")
 	}
 
-	dynamodb := store.NewDynamoDBStore(context.TODO(), tableName)
-	domain := domain.NewProductsDomain(dynamodb)
-	handler := handlers.NewAPIGatewayV2Handler(domain)
+	ctx := context.Background()
+	dynamodb := repository.NewDynamoDBStore(ctx, tableName)
+
 	lambda.Start(handler.DeleteHandler)
 }
