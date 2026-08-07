@@ -18,7 +18,7 @@ func NewRouter(api *API, auth TokenValidator) *Router {
 		auth: auth,
 	}
 }
-func (r *Router) handleRequest(ctx context.Context, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
+func (r *Router) HandleRequest(ctx context.Context, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
 	// Validate the JWT token from the request headers
 	claims, err := r.auth.ValidateToken(req.Headers["Authorization"])
 	if err != nil {
