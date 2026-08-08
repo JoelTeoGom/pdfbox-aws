@@ -8,4 +8,6 @@ var (
 	ErrInvalidSize   = errors.New("invalid file size")
 	ErrInvalidType   = errors.New("invalid content type")
 	ErrInvalidStatus = errors.New("invalid status transition")
+	ErrFileNotFound  = errors.New("file not found")
+	ErrUnauthorized  = errors.New("unauthorized")
 )

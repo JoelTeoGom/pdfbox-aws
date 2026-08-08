@@ -11,6 +11,11 @@ const (
 	StatusDeleted  Status = "deleted"
 )
 
+type FileResponse struct {
+	PresignedURL string `json:"presigned_url"`
+	FileData     *File  `json:"file_data"`
+}
+
 type File struct {
 	ID        string
 	OwnerID   string

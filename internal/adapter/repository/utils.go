@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-func encodeCursor(k map[string]types.AttributeValue) string {
+func EncodeCursor(k map[string]types.AttributeValue) string {
 	if len(k) == 0 {
 		return ""
 	}
@@ -18,7 +18,7 @@ func encodeCursor(k map[string]types.AttributeValue) string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-func decodeCursor(cursor string) (map[string]types.AttributeValue, error) {
+func DecodeCursor(cursor string) (map[string]types.AttributeValue, error) {
 	if cursor == "" {
 		return nil, nil
 	}
