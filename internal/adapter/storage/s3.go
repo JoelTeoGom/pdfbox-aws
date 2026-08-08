@@ -2,7 +2,8 @@ package storage
 
 import (
 	"context"
-	"strings"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -30,18 +31,38 @@ func NewS3Service(ctx context.Context, bucket string) *S3Service {
 
 func (s *S3Service) DeleteFile(ctx context.Context, fileID string) error {
 	_, err := s.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
-		Bucket: aws.String("your-bucket-name"),
+		Bucket: aws.String(s.bucket),
 		Key:    aws.String(fileID),
 	})
 	return err
 }
 
-func (s *S3Service) GeneratePresignedURL(ctx context.Context, fileID string) (string, error) {
-	req, _ := s.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String("amzn-s3-demo-bucket"),
-		Key:    aws.String("myKey"),
-		Body:   strings.NewReader("EXPECTED CONTENTS"),
-	})
-	str, err := req.Presign(15 * time.Minute)
+func (s *S3Service) GeneratePresignedURL(ctx context.Context, method, fileID string) (string, error) {
+	if fileID == "" {
+		return "", errors.New("fileID cannot be empty")
+	}
+	if method != "GET" && method != "PUT" {
+		return "", errors.New("unsupported method")
+	}
+
+	if method == "GET" {
+		req, err := s.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(s.bucket),
+			Key:    aws.String(fileID),
+		}, s3.WithPresignExpires(15*time.Minute))
+		if err != nil {
+			return "", fmt.Errorf("presign get: %w", err)
+		}
+		return req.URL, nil
+	}
+
+	req, err := s.presignClient.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(fileID),
+	}, s3.WithPresignExpires(15*time.Minute))
+	if err != nil {
+		return "", fmt.Errorf("presign put: %w", err)
+	}
+
 	return req.URL, nil
 }
