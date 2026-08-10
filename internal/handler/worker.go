@@ -75,6 +75,10 @@ func (w *Worker) processMessage(ctx context.Context, msg events.SQSMessage) erro
 		if err != nil {
 			return fmt.Errorf("dynamo get: %w", err)
 		}
+		if file.Status != domain.StatusPending {
+			slog.WarnContext(ctx, "file already processed or rejected/deleted", "userID", userID, "fileID", fileID, "status", file.Status)
+			return nil
+		}
 
 		if r.S3.Object.Size > domain.MaxFileSize || file.Mime != domain.MimeTypePDF || file.Size != r.S3.Object.Size {
 			_ = w.repo.UpdateStatus(ctx, userID, fileID, domain.StatusRejected)
