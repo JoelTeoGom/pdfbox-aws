@@ -1,0 +1,30 @@
+# --- Terraform ---
+# State files record every variable and resource attribute in PLAINTEXT,
+# including jwt_secret. A committed state file is a leaked secret, and rewriting
+# git history is the only way to take it back. Use a remote backend with
+# encryption for anything shared.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log
+
+# Real variable values, secrets included. The .example file is committed.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# --- Build output ---
+build/
+*.zip
+
+# --- Local environment ---
+.env
+.env.*
+!.env.example
+
+# --- OS and editor noise ---
+.DS_Store
+.idea/
+*.swp

@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1010" viewBox="0 0 1440 1010" font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrowGrey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#37474F"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3F8624"/>
+    </marker>
+    <marker id="arrowPink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#E7157B"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1440" height="1010" fill="#FFFFFF"/>
+
+  <text x="60" y="52" font-size="27" font-weight="700" fill="#16191F">pdfbox-aws — architecture</text>
+  <text x="60" y="78" font-size="14.5" fill="#5A6B7B">Serverless multi-tenant PDF storage. File bytes never pass through the backend.</text>
+
+  <!-- ============ Browser ============ -->
+  <rect x="60" y="120" width="200" height="100" rx="8" fill="#FFFFFF" stroke="#5A6B7B" stroke-width="2.5"/>
+  <rect x="60" y="120" width="200" height="32" rx="8" fill="#5A6B7B"/>
+  <rect x="60" y="144" width="200" height="8" fill="#5A6B7B"/>
+  <text x="160" y="142" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">Browser</text>
+  <text x="160" y="177" font-size="12.5" fill="#37474F" text-anchor="middle">Holds the JWT.</text>
+  <text x="160" y="196" font-size="12.5" fill="#37474F" text-anchor="middle">Uploads straight to S3.</text>
+
+  <!-- ============ API Gateway ============ -->
+  <rect x="330" y="120" width="200" height="100" rx="8" fill="#FFFFFF" stroke="#8C4FFF" stroke-width="2.5"/>
+  <rect x="330" y="120" width="200" height="32" rx="8" fill="#8C4FFF"/>
+  <rect x="330" y="144" width="200" height="8" fill="#8C4FFF"/>
+  <text x="430" y="142" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">API Gateway</text>
+  <text x="430" y="177" font-size="12.5" fill="#37474F" text-anchor="middle">HTTP API</text>
+  <text x="430" y="196" font-size="12.5" fill="#37474F" text-anchor="middle">Routes /files</text>
+
+  <!-- ============ Lambda API ============ -->
+  <rect x="630" y="120" width="200" height="100" rx="8" fill="#FFFFFF" stroke="#ED7100" stroke-width="2.5"/>
+  <rect x="630" y="120" width="200" height="32" rx="8" fill="#ED7100"/>
+  <rect x="630" y="144" width="200" height="8" fill="#ED7100"/>
+  <text x="730" y="142" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">Lambda — API</text>
+  <text x="730" y="177" font-size="12.5" fill="#37474F" text-anchor="middle">Validates JWT, writes</text>
+  <text x="730" y="196" font-size="12.5" fill="#37474F" text-anchor="middle">metadata, signs URLs</text>
+
+  <!-- ============ DynamoDB ============ -->
+  <rect x="1180" y="120" width="200" height="100" rx="8" fill="#FFFFFF" stroke="#2E73B8" stroke-width="2.5"/>
+  <rect x="1180" y="120" width="200" height="32" rx="8" fill="#2E73B8"/>
+  <rect x="1180" y="144" width="200" height="8" fill="#2E73B8"/>
+  <text x="1280" y="142" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">DynamoDB</text>
+  <text x="1280" y="177" font-size="12.5" fill="#37474F" text-anchor="middle">Source of truth</text>
+  <text x="1280" y="196" font-size="12.5" fill="#37474F" text-anchor="middle">PK USER# / SK FILE#</text>
+
+  <!-- ============ S3 ============ -->
+  <rect x="330" y="310" width="200" height="100" rx="8" fill="#FFFFFF" stroke="#3F8624" stroke-width="2.5"/>
+  <rect x="330" y="310" width="200" height="32" rx="8" fill="#3F8624"/>
+  <rect x="330" y="334" width="200" height="8" fill="#3F8624"/>
+  <text x="430" y="332" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">S3</text>
+  <text x="430" y="367" font-size="12.5" fill="#37474F" text-anchor="middle">users/&lt;sub&gt;/&lt;uuid&gt;.pdf</text>
+  <text x="430" y="386" font-size="12.5" fill="#37474F" text-anchor="middle">Private, no public access</text>
+
+  <!-- ============ SQS ============ -->
+  <rect x="630" y="500" width="200" height="100" rx="8" fill="#FFFFFF" stroke="#E7157B" stroke-width="2.5"/>
+  <rect x="630" y="500" width="200" height="32" rx="8" fill="#E7157B"/>
+  <rect x="630" y="524" width="200" height="8" fill="#E7157B"/>
+  <text x="730" y="522" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">SQS</text>
+  <text x="730" y="557" font-size="12.5" fill="#37474F" text-anchor="middle">Buffers upload events,</text>
+  <text x="730" y="576" font-size="12.5" fill="#37474F" text-anchor="middle">caps worker concurrency</text>
+
+  <!-- ============ DLQ ============ -->
+  <rect x="630" y="628" width="200" height="62" rx="8" fill="#FFFFFF" stroke="#E7157B" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="730" y="655" font-size="14" font-weight="700" fill="#E7157B" text-anchor="middle">Dead-letter queue</text>
+  <text x="730" y="675" font-size="12" fill="#37474F" text-anchor="middle">Poison messages land here</text>
+
+  <!-- ============ Lambda Worker ============ -->
+  <rect x="880" y="500" width="200" height="100" rx="8" fill="#FFFFFF" stroke="#ED7100" stroke-width="2.5"/>
+  <rect x="880" y="500" width="200" height="32" rx="8" fill="#ED7100"/>
+  <rect x="880" y="524" width="200" height="8" fill="#ED7100"/>
+  <text x="980" y="522" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">Lambda — Worker</text>
+  <text x="980" y="557" font-size="12.5" fill="#37474F" text-anchor="middle">Confirms the upload</text>
+  <text x="980" y="576" font-size="12.5" fill="#37474F" text-anchor="middle">really happened</text>
+
+  <!-- ============ EventBridge ============ -->
+  <rect x="330" y="770" width="200" height="100" rx="8" fill="#FFFFFF" stroke="#E7157B" stroke-width="2.5" stroke-dasharray="7 4"/>
+  <rect x="330" y="770" width="200" height="32" rx="8" fill="#E7157B"/>
+  <rect x="330" y="794" width="200" height="8" fill="#E7157B"/>
+  <text x="430" y="792" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">EventBridge Scheduler</text>
+  <text x="430" y="827" font-size="12.5" fill="#37474F" text-anchor="middle">Cron trigger</text>
+  <text x="430" y="846" font-size="12.5" fill="#8C6A00" text-anchor="middle">not implemented yet</text>
+
+  <!-- ============ Lambda Sweeper ============ -->
+  <rect x="630" y="770" width="200" height="100" rx="8" fill="#FFFFFF" stroke="#ED7100" stroke-width="2.5" stroke-dasharray="7 4"/>
+  <rect x="630" y="770" width="200" height="32" rx="8" fill="#ED7100"/>
+  <rect x="630" y="794" width="200" height="8" fill="#ED7100"/>
+  <text x="730" y="792" font-size="15" font-weight="700" fill="#FFFFFF" text-anchor="middle">Lambda — Sweeper</text>
+  <text x="730" y="827" font-size="12.5" fill="#37474F" text-anchor="middle">Reconciles S3 against DDB</text>
+  <text x="730" y="846" font-size="12.5" fill="#8C6A00" text-anchor="middle">not implemented yet</text>
+
+  <!-- ============ Arrows: synchronous API path ============ -->
+  <line x1="260" y1="170" x2="322" y2="170" stroke="#37474F" stroke-width="2" marker-end="url(#arrowGrey)"/>
+  <text x="291" y="160" font-size="11.5" fill="#37474F" text-anchor="middle">HTTPS</text>
+
+  <line x1="530" y1="170" x2="622" y2="170" stroke="#37474F" stroke-width="2" marker-end="url(#arrowGrey)"/>
+  <text x="576" y="160" font-size="11.5" fill="#37474F" text-anchor="middle">invoke</text>
+
+  <path d="M 830 152 L 1172 152" fill="none" stroke="#37474F" stroke-width="2" marker-end="url(#arrowGrey)"/>
+  <text x="1001" y="143" font-size="11.5" fill="#37474F" text-anchor="middle">PutItem · Query · UpdateItem</text>
+
+  <!-- ============ Arrow: the point of the design ============ -->
+  <path d="M 160 220 L 160 360 L 322 360" fill="none" stroke="#3F8624" stroke-width="5.5"
+        marker-end="url(#arrowGreen)" marker-start="url(#arrowGreen)"/>
+  <rect x="52" y="392" width="252" height="86" rx="6" fill="#F2F8EE" stroke="#3F8624" stroke-width="1.5"/>
+  <text x="66" y="414" font-size="12.5" font-weight="700" fill="#2C5E19">Direct PUT / GET, presigned</text>
+  <text x="66" y="433" font-size="12" fill="#37474F">File bytes go straight to S3 and</text>
+  <text x="66" y="450" font-size="12" fill="#37474F">never traverse Lambda or the API.</text>
+  <text x="66" y="467" font-size="12" fill="#37474F">URLs are valid for 15 minutes.</text>
+
+  <!-- ============ Arrows: asynchronous confirmation ============ -->
+  <path d="M 430 410 L 430 550 L 622 550" fill="none" stroke="#E7157B" stroke-width="2" marker-end="url(#arrowPink)"/>
+  <text x="443" y="500" font-size="11.5" fill="#E7157B">s3:ObjectCreated:*</text>
+
+  <line x1="830" y1="550" x2="872" y2="550" stroke="#E7157B" stroke-width="2" marker-end="url(#arrowPink)"/>
+
+  <path d="M 730 600 L 730 620" fill="none" stroke="#E7157B" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrowPink)"/>
+
+  <path d="M 980 500 L 980 188 L 1172 188" fill="none" stroke="#37474F" stroke-width="2" marker-end="url(#arrowGrey)"/>
+  <text x="992" y="300" font-size="11.5" fill="#37474F">pending → uploaded</text>
+  <text x="992" y="317" font-size="11.5" fill="#37474F">or → rejected</text>
+
+  <!-- ============ Arrows: reconciliation (planned) ============ -->
+  <line x1="530" y1="820" x2="622" y2="820" stroke="#E7157B" stroke-width="2" stroke-dasharray="7 4" marker-end="url(#arrowPink)"/>
+
+  <path d="M 830 820 L 1280 820 L 1280 228" fill="none" stroke="#37474F" stroke-width="2" stroke-dasharray="7 4" marker-end="url(#arrowGrey)"/>
+  <text x="1050" y="810" font-size="11.5" fill="#37474F" text-anchor="middle">reads the source of truth</text>
+
+  <path d="M 730 870 L 730 908 L 272 908 L 272 440 L 380 440 L 380 418" fill="none" stroke="#37474F" stroke-width="2" stroke-dasharray="7 4" marker-end="url(#arrowGrey)"/>
+  <text x="530" y="898" font-size="11.5" fill="#37474F" text-anchor="middle">deletes objects whose record is gone or trashed</text>
+
+  <!-- ============ API routes panel ============ -->
+  <rect x="52" y="560" width="252" height="176" rx="6" fill="#F7F9FA" stroke="#B7C4CC" stroke-width="1.5"/>
+  <text x="66" y="584" font-size="13" font-weight="700" fill="#16191F">API routes</text>
+  <text x="66" y="609" font-size="11.5" font-weight="700" fill="#8C4FFF">POST /files</text>
+  <text x="66" y="625" font-size="11" fill="#37474F">record as pending + presigned PUT</text>
+  <text x="66" y="648" font-size="11.5" font-weight="700" fill="#8C4FFF">GET /files</text>
+  <text x="66" y="664" font-size="11" fill="#37474F">paginated metadata, signs nothing</text>
+  <text x="66" y="687" font-size="11.5" font-weight="700" fill="#8C4FFF">GET /files/{id}</text>
+  <text x="66" y="703" font-size="11" fill="#37474F">presigned GET URL</text>
+  <text x="66" y="726" font-size="11.5" font-weight="700" fill="#8C4FFF">DELETE /files/{id}</text>
+
+  <!-- ============ Legend ============ -->
+  <rect x="1120" y="560" width="268" height="176" rx="6" fill="#F7F9FA" stroke="#B7C4CC" stroke-width="1.5"/>
+  <text x="1134" y="584" font-size="13" font-weight="700" fill="#16191F">Legend</text>
+
+  <rect x="1134" y="597" width="26" height="12" rx="3" fill="#ED7100"/>
+  <text x="1170" y="607" font-size="11.5" fill="#37474F">Compute</text>
+
+  <rect x="1134" y="619" width="26" height="12" rx="3" fill="#2E73B8"/>
+  <text x="1170" y="629" font-size="11.5" fill="#37474F">Database</text>
+
+  <rect x="1134" y="641" width="26" height="12" rx="3" fill="#3F8624"/>
+  <text x="1170" y="651" font-size="11.5" fill="#37474F">Storage</text>
+
+  <rect x="1134" y="663" width="26" height="12" rx="3" fill="#E7157B"/>
+  <text x="1170" y="673" font-size="11.5" fill="#37474F">Messaging / events</text>
+
+  <rect x="1134" y="685" width="26" height="12" rx="3" fill="#8C4FFF"/>
+  <text x="1170" y="695" font-size="11.5" fill="#37474F">Networking</text>
+
+  <line x1="1134" y1="714" x2="1160" y2="714" stroke="#37474F" stroke-width="2" stroke-dasharray="7 4"/>
+  <text x="1170" y="718" font-size="11.5" fill="#37474F">Planned, not implemented</text>
+</svg>

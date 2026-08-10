@@ -1,0 +1,44 @@
+# Copy this file to terraform.tfvars and fill in your own values.
+#
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# terraform.tfvars is gitignored because it holds secrets. This example file is
+# committed, so never put a real value in it.
+
+# Name prefix applied to every resource, so a single account can host more than
+# one environment side by side. Lowercase and hyphens only.
+project_name = "pdfbox"
+
+# Region hosting the bucket, the table and both Lambdas. Keeping them together
+# avoids cross-region data transfer charges on every upload event.
+aws_region = "eu-west-1"
+
+# S3 bucket holding the PDFs. Bucket names are globally unique across all AWS
+# accounts, so this needs a suffix nobody else has taken.
+bucket_name = "pdfbox-files-CHANGE-ME"
+
+# HMAC secret used to sign and validate access tokens (HS256). Generate one with
+# `openssl rand -base64 48`.
+#
+# Anyone holding this value can mint a token for any user, so treat it the way
+# you would treat a root password. For anything beyond a personal deployment,
+# read it from AWS Secrets Manager or SSM Parameter Store instead of a tfvars
+# file: Terraform writes every variable it receives into the state file in
+# plaintext.
+jwt_secret = "CHANGE-ME-DO-NOT-COMMIT-A-REAL-SECRET"
+
+# Origins allowed to call the API from a browser, used for the API Gateway CORS
+# configuration and the bucket CORS rule. The bucket needs its own rule because
+# the browser uploads straight to S3, which is a different origin from the API.
+# Never "*" once credentials or tokens are involved.
+allowed_origins = ["http://localhost:5173"]
+
+# Retention for the CloudWatch log groups of both Lambdas. Log groups created
+# implicitly by Lambda keep logs forever and bill for the storage, so this is
+# set explicitly on purpose.
+log_retention_days = 14
+
+# How often the reconciliation Lambda runs, as an EventBridge Scheduler
+# expression. Reconciliation is a safety net, not a hot path: daily is plenty,
+# and every run costs a scan of the pending-cleanup index.
+reconciliation_schedule = "rate(1 day)"
