@@ -109,6 +109,9 @@ func (api *API) MarkDeleted(ctx context.Context, userID, fileID string) error {
 	if userID == "" {
 		return domain.ErrUnauthorized
 	}
+	if fileID == "" {
+		return domain.ErrFileNotFound
+	}
 	if err := api.repo.UpdateStatus(ctx, userID, fileID, domain.StatusDeleted); err != nil {
 		return err
 	}

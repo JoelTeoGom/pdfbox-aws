@@ -9,8 +9,9 @@ var (
 	ErrInvalidMimeType = errors.New("invalid content type")
 
 	// Lookup and access
-	ErrFileNotFound = errors.New("file not found")
-	ErrUnauthorized = errors.New("unauthorized")
+	ErrFileNotFound      = errors.New("file not found")
+	ErrFileAlreadyExists = errors.New("file already exists")
+	ErrUnauthorized      = errors.New("unauthorized")
 
 	// Lifecycle
 	ErrNotReady         = errors.New("file not ready")

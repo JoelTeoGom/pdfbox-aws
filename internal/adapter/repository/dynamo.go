@@ -66,12 +66,19 @@ func (r *DynamoDbRepo) Save(ctx context.Context, file *domain.File) error {
 	if err != nil {
 		return fmt.Errorf("dynamo marshal: %w", err)
 	}
-	out, err := r.client.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName:              aws.String(r.tableName),
-		Item:                   item,
+	_, err = r.client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(r.tableName),
+		Item:      item,
+		// PutItem overwrites by default. Refuse to clobber an existing item so
+		// an ID collision surfaces as an error instead of losing the old file.
+		ConditionExpression:    aws.String("attribute_not_exists(PK)"),
 		ReturnConsumedCapacity: types.ReturnConsumedCapacityTotal,
 	})
-	if out == nil || err != nil {
+	if err != nil {
+		var conditionFailed *types.ConditionalCheckFailedException
+		if errors.As(err, &conditionFailed) {
+			return domain.ErrFileAlreadyExists
+		}
 		return fmt.Errorf("dynamo save: %w", err)
 	}
 	return nil
@@ -115,13 +122,17 @@ func (r *DynamoDbRepo) List(ctx context.Context, userID, cursor string, limit in
 }
 
 func (r *DynamoDbRepo) UpdateStatus(ctx context.Context, userID, fileID string, status domain.Status) error {
-	out, err := r.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+	_, err := r.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: aws.String(r.tableName),
 		Key: map[string]types.AttributeValue{
 			"PK": &types.AttributeValueMemberS{Value: "USER#" + userID},
 			"SK": &types.AttributeValueMemberS{Value: "FILE#" + fileID},
 		},
 		UpdateExpression: aws.String("SET #status = :status"),
+		// UpdateItem is an upsert: without this guard a status change for an
+		// unknown ID would create the item rather than fail, which is not how
+		// an SQL UPDATE on a missing row behaves.
+		ConditionExpression: aws.String("attribute_exists(PK)"),
 		ExpressionAttributeNames: map[string]string{
 			"#status": "status",
 		},
@@ -129,7 +140,11 @@ func (r *DynamoDbRepo) UpdateStatus(ctx context.Context, userID, fileID string, 
 			":status": &types.AttributeValueMemberS{Value: string(status)},
 		},
 	})
-	if out == nil || err != nil {
+	if err != nil {
+		var conditionFailed *types.ConditionalCheckFailedException
+		if errors.As(err, &conditionFailed) {
+			return domain.ErrFileNotFound
+		}
 		return fmt.Errorf("dynamo update status: %w", err)
 	}
 	return nil
