@@ -29,17 +29,19 @@ func NewS3Service(ctx context.Context, bucket string) *S3Service {
 	}
 }
 
-func (s *S3Service) DeleteFile(ctx context.Context, fileID string) error {
+// DeleteFile removes an object. S3 answers with success when the key does not
+// exist, so callers can retry this safely.
+func (s *S3Service) DeleteFile(ctx context.Context, s3Key string) error {
 	_, err := s.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(s.bucket),
-		Key:    aws.String(fileID),
+		Key:    aws.String(s3Key),
 	})
 	return err
 }
 
-func (s *S3Service) GeneratePresignedURL(ctx context.Context, method, fileID string) (string, error) {
-	if fileID == "" {
-		return "", errors.New("fileID cannot be empty")
+func (s *S3Service) GeneratePresignedURL(ctx context.Context, method, s3Key string) (string, error) {
+	if s3Key == "" {
+		return "", errors.New("s3Key cannot be empty")
 	}
 	if method != "GET" && method != "PUT" {
 		return "", errors.New("unsupported method")
@@ -48,7 +50,7 @@ func (s *S3Service) GeneratePresignedURL(ctx context.Context, method, fileID str
 	if method == "GET" {
 		req, err := s.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
 			Bucket: aws.String(s.bucket),
-			Key:    aws.String(fileID),
+			Key:    aws.String(s3Key),
 		}, s3.WithPresignExpires(15*time.Minute))
 		if err != nil {
 			return "", fmt.Errorf("presign get: %w", err)
@@ -58,7 +60,7 @@ func (s *S3Service) GeneratePresignedURL(ctx context.Context, method, fileID str
 
 	req, err := s.presignClient.PresignPutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(s.bucket),
-		Key:    aws.String(fileID),
+		Key:    aws.String(s3Key),
 	}, s3.WithPresignExpires(15*time.Minute))
 	if err != nil {
 		return "", fmt.Errorf("presign put: %w", err)

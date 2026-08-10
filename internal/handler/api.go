@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"pdf-box-aws/internal/domain"
 	"time"
 
@@ -32,56 +31,56 @@ type TokenValidator interface {
 }
 
 type S3service interface {
-	DeleteFile(ctx context.Context, fileID string) error
-	GeneratePresignedURL(ctx context.Context, method, fileID string) (string, error)
+	DeleteFile(ctx context.Context, s3Key string) error
+	GeneratePresignedURL(ctx context.Context, method, s3Key string) (string, error)
 }
 
-func (api *API) Get(ctx context.Context, userID, fileID string) (*domain.FileResponse, error) {
+// Get returns the stored file along with a presigned URL to download it.
+func (api *API) Get(ctx context.Context, userID, fileID string) (*domain.File, string, error) {
 	if fileID == "" {
-		return nil, domain.ErrFileNotFound
+		return nil, "", domain.ErrFileNotFound
 	}
 	if userID == "" {
-		return nil, domain.ErrUnauthorized
+		return nil, "", domain.ErrUnauthorized
 	}
 
 	file, err := api.repo.Get(ctx, userID, fileID)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if file == nil {
-		return nil, domain.ErrFileNotFound
+		return nil, "", domain.ErrFileNotFound
 	}
-	presignedURL, err := api.s3.GeneratePresignedURL(ctx, "GET", fileID)
+	presignedURL, err := api.s3.GeneratePresignedURL(ctx, "GET", file.S3Key)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return &domain.FileResponse{
-		PresignedURL: presignedURL,
-		FileData:     file,
-	}, nil
+	return file, presignedURL, nil
 }
 
-func (api *API) Save(ctx context.Context, userId, filename string, size int64, mime string) (*domain.FileResponse, error) {
+// Save records the pending file and returns it along with a presigned URL the
+// client uses to upload the bytes directly to S3.
+func (api *API) Save(ctx context.Context, userId, filename string, size int64, mime string) (*domain.File, string, error) {
 	if userId == "" {
-		return nil, domain.ErrUnauthorized
+		return nil, "", domain.ErrUnauthorized
 	}
 	if filename == "" || size <= 0 || mime == "" {
-		return nil, domain.ErrInvalidInput
+		return nil, "", domain.ErrInvalidInput
 	}
 
 	if size > domain.MaxFileSize {
-		return nil, domain.ErrFileTooLarge
+		return nil, "", domain.ErrFileTooLarge
 	}
 
-	if mime != "application/pdf" {
-		return nil, domain.ErrInvalidMimeType
+	if mime != domain.MimeTypePDF {
+		return nil, "", domain.ErrInvalidMimeType
 	}
 	fileID := uuid.New().String()
 	file := &domain.File{
 		ID:        fileID,
 		OwnerID:   userId,
-		S3Key:     fmt.Sprintf("users/%s/%s.pdf", userId, fileID),
+		S3Key:     domain.S3KeyFor(userId, fileID),
 		Filename:  filename,
 		Size:      size,
 		Mime:      mime,
@@ -89,16 +88,13 @@ func (api *API) Save(ctx context.Context, userId, filename string, size int64, m
 		CreatedAt: time.Now(),
 	}
 	if err := api.repo.Save(ctx, file); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	presignedURL, err := api.s3.GeneratePresignedURL(ctx, "PUT", file.ID)
+	presignedURL, err := api.s3.GeneratePresignedURL(ctx, "PUT", file.S3Key)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return &domain.FileResponse{
-		PresignedURL: presignedURL,
-		FileData:     file,
-	}, nil
+	return file, presignedURL, nil
 }
 
 func (api *API) List(ctx context.Context, userID, cursor string, limit int) ([]*domain.File, string, error) {
@@ -116,5 +112,7 @@ func (api *API) MarkDeleted(ctx context.Context, userID, fileID string) error {
 	if err := api.repo.UpdateStatus(ctx, userID, fileID, domain.StatusDeleted); err != nil {
 		return err
 	}
-	return api.s3.DeleteFile(ctx, fileID)
+	// Dynamo is updated first so the API stops serving the file straight away.
+	// A failure here only leaks the bytes, which the reconciliation job sweeps.
+	return api.s3.DeleteFile(ctx, domain.S3KeyFor(userID, fileID))
 }

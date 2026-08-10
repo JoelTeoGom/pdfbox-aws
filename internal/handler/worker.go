@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"pdf-box-aws/internal/domain"
 	"strconv"
 	"strings"
@@ -26,23 +25,6 @@ func NewWorker(repo FileRepository, storage S3service) *Worker {
 	}
 }
 
-func parseKey(key string) (userID, fileID string, err error) {
-	key, err = url.QueryUnescape(key)
-	if err != nil {
-		return "", "", err
-	}
-
-	parts := strings.Split(key, "/")
-	if len(parts) != 3 || parts[0] != "users" {
-		return "", "", fmt.Errorf("unexpected key format: %s", key)
-	}
-
-	userID = parts[1]
-	fileID = strings.TrimSuffix(parts[2], ".pdf")
-	return userID, fileID, nil
-}
-
-// errores de control de flujo, no de negocio
 var errPermanent = errors.New("permanent failure, do not retry")
 
 func (w *Worker) HandleRequest(ctx context.Context, event events.SQSEvent) (events.SQSEventResponse, error) {
@@ -52,7 +34,7 @@ func (w *Worker) HandleRequest(ctx context.Context, event events.SQSEvent) (even
 		if err := w.processMessage(ctx, msg); err != nil {
 			if errors.Is(err, errPermanent) {
 				slog.ErrorContext(ctx, "dropping message", "messageId", msg.MessageId, "error", err)
-				continue // se borra de la cola
+				continue // delete from queue, do not retry
 			}
 			slog.ErrorContext(ctx, "retryable failure", "messageId", msg.MessageId, "error", err)
 			failures = append(failures, events.SQSBatchItemFailure{ItemIdentifier: msg.MessageId})
@@ -75,7 +57,7 @@ func (w *Worker) processMessage(ctx context.Context, msg events.SQSMessage) erro
 			continue
 		}
 
-		userID, fileID, err := parseKey(r.S3.Object.Key)
+		userID, fileID, err := domain.ParseS3Key(r.S3.Object.Key)
 		if err != nil {
 			return fmt.Errorf("%w: bad key %q: %v", errPermanent, r.S3.Object.Key, err)
 		}
@@ -94,7 +76,7 @@ func (w *Worker) processMessage(ctx context.Context, msg events.SQSMessage) erro
 			return fmt.Errorf("dynamo get: %w", err)
 		}
 
-		if r.S3.Object.Size > domain.MaxFileSize || file.Mime != "application/pdf" || file.Size != r.S3.Object.Size {
+		if r.S3.Object.Size > domain.MaxFileSize || file.Mime != domain.MimeTypePDF || file.Size != r.S3.Object.Size {
 			_ = w.repo.UpdateStatus(ctx, userID, fileID, domain.StatusRejected)
 			if err := w.storage.DeleteFile(ctx, r.S3.Object.Key); err != nil {
 				slog.ErrorContext(ctx, "failed to delete oversized object", "key", r.S3.Object.Key)

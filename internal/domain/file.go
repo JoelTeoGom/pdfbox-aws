@@ -1,6 +1,11 @@
 package domain
 
-import "time"
+import (
+	"fmt"
+	"net/url"
+	"strings"
+	"time"
+)
 
 type Status string
 
@@ -19,11 +24,6 @@ const (
 	MimeTypePDF = "application/pdf"
 )
 
-type FileResponse struct {
-	PresignedURL string `json:"presigned_url"`
-	FileData     *File  `json:"file_data"`
-}
-
 type File struct {
 	ID        string
 	OwnerID   string
@@ -37,4 +37,27 @@ type File struct {
 
 func (f *File) CanBeDownloaded() bool {
 	return f.Status == StatusUploaded
+}
+
+// S3KeyFor builds the object key under which a user's file is stored. This is
+// the single definition of the bucket layout; ParseS3Key is its inverse, and
+// the two must be changed together.
+func S3KeyFor(ownerID, fileID string) string {
+	return fmt.Sprintf("users/%s/%s.pdf", ownerID, fileID)
+}
+
+// ParseS3Key extracts the owner and file IDs from an object key. Keys arriving
+// from S3 event notifications are URL-encoded, so they are decoded first.
+func ParseS3Key(s3Key string) (ownerID, fileID string, err error) {
+	decodedKey, err := url.QueryUnescape(s3Key)
+	if err != nil {
+		return "", "", err
+	}
+
+	parts := strings.Split(decodedKey, "/")
+	if len(parts) != 3 || parts[0] != "users" || !strings.HasSuffix(parts[2], ".pdf") {
+		return "", "", fmt.Errorf("unexpected key format: %s", s3Key)
+	}
+
+	return parts[1], strings.TrimSuffix(parts[2], ".pdf"), nil
 }

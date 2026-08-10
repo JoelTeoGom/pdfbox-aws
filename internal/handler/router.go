@@ -3,8 +3,14 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 
 	"github.com/aws/aws-lambda-go/events"
+)
+
+const (
+	defaultListLimit = 20
+	maxListLimit     = 100
 )
 
 type Router struct {
@@ -47,7 +53,7 @@ func (r *Router) HandleRequest(ctx context.Context, req events.APIGatewayV2HTTPR
 
 func (r *Router) handleGetFile(ctx context.Context, userID string, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
 	fileID := req.PathParameters["fileID"]
-	file, err := r.API.Get(ctx, userID, fileID)
+	file, presignedURL, err := r.API.Get(ctx, userID, fileID)
 	if err != nil {
 		return &events.APIGatewayV2HTTPResponse{
 			StatusCode: 500,
@@ -61,7 +67,10 @@ func (r *Router) handleGetFile(ctx context.Context, userID string, req events.AP
 		}, nil
 	}
 
-	body, err := json.Marshal(file)
+	body, err := json.Marshal(FileResponse{
+		PresignedURL: presignedURL,
+		File:         toFileDTO(file),
+	})
 	if err != nil {
 		return &events.APIGatewayV2HTTPResponse{
 			StatusCode: 500,
@@ -87,7 +96,7 @@ func (r *Router) handleUploadFile(ctx context.Context, userID string, req events
 		}, nil
 	}
 
-	file, err := r.API.Save(ctx, userID, uploadReq.Filename, uploadReq.Size, uploadReq.Mime)
+	file, presignedURL, err := r.API.Save(ctx, userID, uploadReq.Filename, uploadReq.Size, uploadReq.Mime)
 	if err != nil {
 		return &events.APIGatewayV2HTTPResponse{
 			StatusCode: 500,
@@ -95,7 +104,10 @@ func (r *Router) handleUploadFile(ctx context.Context, userID string, req events
 		}, nil
 	}
 
-	body, err := json.Marshal(file)
+	body, err := json.Marshal(FileResponse{
+		PresignedURL: presignedURL,
+		File:         toFileDTO(file),
+	})
 	if err != nil {
 		return &events.APIGatewayV2HTTPResponse{
 			StatusCode: 500,
@@ -109,10 +121,39 @@ func (r *Router) handleUploadFile(ctx context.Context, userID string, req events
 }
 
 func (r *Router) handleListFiles(ctx context.Context, userID string, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
-	//TODO : Implement file listing logic
+	limit := defaultListLimit
+	if raw := req.QueryStringParameters["limit"]; raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed <= 0 {
+			return &events.APIGatewayV2HTTPResponse{
+				StatusCode: 400,
+				Body:       "Invalid limit",
+			}, nil
+		}
+		limit = min(parsed, maxListLimit)
+	}
+
+	files, nextCursor, err := r.API.List(ctx, userID, req.QueryStringParameters["cursor"], limit)
+	if err != nil {
+		return &events.APIGatewayV2HTTPResponse{
+			StatusCode: 500,
+			Body:       "Internal Server Error",
+		}, nil
+	}
+
+	body, err := json.Marshal(ListResponse{
+		Items:      toFileDTOs(files),
+		NextCursor: nextCursor,
+	})
+	if err != nil {
+		return &events.APIGatewayV2HTTPResponse{
+			StatusCode: 500,
+			Body:       "Internal Server Error",
+		}, nil
+	}
 	return &events.APIGatewayV2HTTPResponse{
-		StatusCode: 501,
-		Body:       "Not Implemented",
+		StatusCode: 200,
+		Body:       string(body),
 	}, nil
 }
 
