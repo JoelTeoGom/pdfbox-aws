@@ -7,14 +7,12 @@ import (
 
 type API struct {
 	repo FileRepository
-	auth TokenValidator
 	s3   S3service
 }
 
-func NewAPI(repo FileRepository, auth TokenValidator, s3 S3service) *API {
+func NewAPI(repo FileRepository, s3 S3service) *API {
 	return &API{
 		repo: repo,
-		auth: auth,
 		s3:   s3,
 	}
 }
@@ -23,7 +21,7 @@ type FileRepository interface {
 	Get(ctx context.Context, userID, fileID string) (*domain.File, error)
 	Save(ctx context.Context, f *domain.File) error
 	List(ctx context.Context, userID, cursor string, limit int) ([]*domain.File, string, error)
-	MarkDeleted(ctx context.Context, userID, fileID string) error
+	UpdateStatus(ctx context.Context, userID, fileID string, status domain.Status) error
 }
 type TokenValidator interface {
 	ValidateToken(token string) (*domain.Claims, error)
@@ -60,13 +58,27 @@ func (api *API) Get(ctx context.Context, userID, fileID string) (*domain.FileRes
 	}, nil
 }
 
-func (api *API) Save(ctx context.Context, userId, filename string) (*domain.FileResponse, error) {
+func (api *API) Save(ctx context.Context, userId, filename string, size int64, mime string) (*domain.FileResponse, error) {
 	if userId == "" {
 		return nil, domain.ErrUnauthorized
 	}
+	if filename == "" || size <= 0 || mime == "" {
+		return nil, domain.ErrInvalidInput
+	}
+
+	if size > domain.MaxFileSize {
+		return nil, domain.ErrFileTooLarge
+	}
+
+	if mime != "application/pdf" {
+		return nil, domain.ErrInvalidMimeType
+	}
+
 	file := &domain.File{
 		OwnerID:  userId,
 		Filename: filename,
+		Size:     size,
+		Mime:     mime,
 		Status:   domain.StatusPending,
 	}
 	if err := api.repo.Save(ctx, file); err != nil {
@@ -94,7 +106,7 @@ func (api *API) MarkDeleted(ctx context.Context, userID, fileID string) error {
 	if userID == "" {
 		return domain.ErrUnauthorized
 	}
-	if err := api.repo.MarkDeleted(ctx, userID, fileID); err != nil {
+	if err := api.repo.UpdateStatus(ctx, userID, fileID, domain.StatusDeleted); err != nil {
 		return err
 	}
 	return api.s3.DeleteFile(ctx, fileID)

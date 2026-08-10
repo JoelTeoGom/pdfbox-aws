@@ -30,7 +30,7 @@ func main() {
 	s3 := storage.NewS3Service(ctx, bucket)
 	tokenValidator := auth.NewJWTService(secret)
 
-	api := handler.NewAPI(dynamodb, tokenValidator, s3)
+	api := handler.NewAPI(dynamodb, s3)
 	router := handler.NewRouter(api, tokenValidator)
 	lambda.Start(router.HandleRequest)
 }

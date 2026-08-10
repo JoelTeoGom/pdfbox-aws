@@ -49,7 +49,7 @@ func (r *DynamoDbRepo) Get(ctx context.Context, userID, fileID string) (*domain.
 		return nil, fmt.Errorf("dynamo get: %w", err)
 	}
 	if out.Item == nil {
-		return nil, domain.ErrNotFound // no encontrar nada NO es error en Dynamo
+		return nil, domain.ErrFileNotFound // a miss is NOT an error in Dynamo
 	}
 
 	var fi fileItem
@@ -114,7 +114,7 @@ func (r *DynamoDbRepo) List(ctx context.Context, userID, cursor string, limit in
 	return files, next, nil
 }
 
-func (r *DynamoDbRepo) MarkDeleted(ctx context.Context, userID, fileID string) error {
+func (r *DynamoDbRepo) UpdateStatus(ctx context.Context, userID, fileID string, status domain.Status) error {
 	out, err := r.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: aws.String(r.tableName),
 		Key: map[string]types.AttributeValue{
@@ -126,11 +126,11 @@ func (r *DynamoDbRepo) MarkDeleted(ctx context.Context, userID, fileID string) e
 			"#status": "status",
 		},
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":status": &types.AttributeValueMemberS{Value: string(domain.StatusDeleted)},
+			":status": &types.AttributeValueMemberS{Value: string(status)},
 		},
 	})
 	if out == nil || err != nil {
-		return fmt.Errorf("dynamo mark deleted: %w", err)
+		return fmt.Errorf("dynamo update status: %w", err)
 	}
 	return nil
 }

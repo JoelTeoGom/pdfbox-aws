@@ -75,10 +75,36 @@ func (r *Router) handleGetFile(ctx context.Context, userID string, req events.AP
 }
 
 func (r *Router) handleUploadFile(ctx context.Context, userID string, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
-	//TODO : Implement file upload logic
+	var uploadReq struct {
+		Filename string `json:"filename"`
+		Size     int64  `json:"size"`
+		Mime     string `json:"mime"`
+	}
+	if err := json.Unmarshal([]byte(req.Body), &uploadReq); err != nil {
+		return &events.APIGatewayV2HTTPResponse{
+			StatusCode: 400,
+			Body:       "Invalid Request Body",
+		}, nil
+	}
+
+	file, err := r.API.Save(ctx, userID, uploadReq.Filename, uploadReq.Size, uploadReq.Mime)
+	if err != nil {
+		return &events.APIGatewayV2HTTPResponse{
+			StatusCode: 500,
+			Body:       "Internal Server Error",
+		}, nil
+	}
+
+	body, err := json.Marshal(file)
+	if err != nil {
+		return &events.APIGatewayV2HTTPResponse{
+			StatusCode: 500,
+			Body:       "Internal Server Error",
+		}, nil
+	}
 	return &events.APIGatewayV2HTTPResponse{
-		StatusCode: 501,
-		Body:       "Not Implemented",
+		StatusCode: 201,
+		Body:       string(body),
 	}, nil
 }
 
