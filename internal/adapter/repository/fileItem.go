@@ -11,6 +11,7 @@ type fileItem struct {
 	S3Key     string `dynamodbav:"s3Key"`
 	Filename  string `dynamodbav:"filename"`
 	Size      int64  `dynamodbav:"size"`
+	Mime      string `dynamodbav:"mime"`
 	Status    string `dynamodbav:"status"`
 	CreatedAt int64  `dynamodbav:"createdAt"`
 	ExpiresAt int64  `dynamodbav:"expiresAt,omitempty"`
@@ -23,6 +24,7 @@ func (f *fileItem) ToDomainFile() *domain.File {
 		S3Key:     f.S3Key,
 		Filename:  f.Filename,
 		Size:      f.Size,
+		Mime:      f.Mime,
 		Status:    domain.Status(f.Status),
 		CreatedAt: time.Unix(f.CreatedAt, 0),
 	}
@@ -35,6 +37,7 @@ func FromDomainFile(f *domain.File) *fileItem {
 		S3Key:     f.S3Key,
 		Filename:  f.Filename,
 		Size:      f.Size,
+		Mime:      f.Mime,
 		Status:    string(f.Status),
 		CreatedAt: f.CreatedAt.Unix(),
 	}

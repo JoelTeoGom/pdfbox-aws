@@ -63,7 +63,7 @@ func (w *Worker) processMessage(ctx context.Context, msg events.SQSMessage) erro
 		}
 
 		file, err := w.repo.Get(ctx, userID, fileID)
-		if errors.Is(err, domain.ErrNotFound) {
+		if errors.Is(err, domain.ErrFileNotFound) {
 			if attempts < 3 {
 				return fmt.Errorf("record not visible yet, retrying")
 			}

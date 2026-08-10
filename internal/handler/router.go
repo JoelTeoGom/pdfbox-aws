@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 )
@@ -11,7 +12,26 @@ import (
 const (
 	defaultListLimit = 20
 	maxListLimit     = 100
+
+	bearerPrefix = "Bearer "
 )
+
+// bearerToken pulls the raw JWT out of the Authorization header. API Gateway
+// HTTP APIs deliver header names lowercased, but the canonical spelling is
+// accepted too so the handler also works behind a REST API or in tests.
+func bearerToken(headers map[string]string) string {
+	authorizationHeader := headers["authorization"]
+	if authorizationHeader == "" {
+		authorizationHeader = headers["Authorization"]
+	}
+
+	if len(authorizationHeader) >= len(bearerPrefix) &&
+		strings.EqualFold(authorizationHeader[:len(bearerPrefix)], bearerPrefix) {
+		authorizationHeader = authorizationHeader[len(bearerPrefix):]
+	}
+
+	return strings.TrimSpace(authorizationHeader)
+}
 
 type Router struct {
 	API  *API
@@ -26,7 +46,7 @@ func NewRouter(api *API, auth TokenValidator) *Router {
 }
 func (r *Router) HandleRequest(ctx context.Context, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
 	// Validate the JWT token from the request headers
-	claims, err := r.auth.ValidateToken(req.Headers["Authorization"])
+	claims, err := r.auth.ValidateToken(bearerToken(req.Headers))
 	if err != nil {
 		return &events.APIGatewayV2HTTPResponse{
 			StatusCode: 401,
