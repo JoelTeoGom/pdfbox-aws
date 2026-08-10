@@ -126,7 +126,10 @@ func (r *Router) handleUploadFile(ctx context.Context, userID string, req events
 
 	body, err := json.Marshal(FileResponse{
 		PresignedURL: presignedURL,
-		File:         toFileDTO(file),
+		// The body must be exactly file.Size bytes: Content-Length is signed too,
+		// but browsers derive it from the body and refuse to let scripts set it.
+		UploadHeaders: map[string]string{"Content-Type": file.Mime},
+		File:          toFileDTO(file),
 	})
 	if err != nil {
 		return &events.APIGatewayV2HTTPResponse{

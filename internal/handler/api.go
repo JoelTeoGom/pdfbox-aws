@@ -32,7 +32,8 @@ type TokenValidator interface {
 
 type S3service interface {
 	DeleteFile(ctx context.Context, s3Key string) error
-	GeneratePresignedURL(ctx context.Context, method, s3Key string) (string, error)
+	PresignDownload(ctx context.Context, s3Key string) (string, error)
+	PresignUpload(ctx context.Context, s3Key, contentType string, contentLength int64) (string, error)
 }
 
 // Get returns the stored file along with a presigned URL to download it.
@@ -51,7 +52,7 @@ func (api *API) Get(ctx context.Context, userID, fileID string) (*domain.File, s
 	if file == nil {
 		return nil, "", domain.ErrFileNotFound
 	}
-	presignedURL, err := api.s3.GeneratePresignedURL(ctx, "GET", file.S3Key)
+	presignedURL, err := api.s3.PresignDownload(ctx, file.S3Key)
 	if err != nil {
 		return nil, "", err
 	}
@@ -90,7 +91,7 @@ func (api *API) Save(ctx context.Context, userId, filename string, size int64, m
 	if err := api.repo.Save(ctx, file); err != nil {
 		return nil, "", err
 	}
-	presignedURL, err := api.s3.GeneratePresignedURL(ctx, "PUT", file.S3Key)
+	presignedURL, err := api.s3.PresignUpload(ctx, file.S3Key, file.Mime, file.Size)
 	if err != nil {
 		return nil, "", err
 	}

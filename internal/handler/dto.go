@@ -19,9 +19,13 @@ type FileDTO struct {
 
 // FileResponse is returned by the single-file endpoints. The presigned URL
 // expires, so it is only handed out here and never inside list responses.
+//
+// UploadHeaders is only present on upload responses. Those headers take part in
+// the signature, so the client has to send them back verbatim or S3 answers 403.
 type FileResponse struct {
-	PresignedURL string   `json:"presigned_url"`
-	File         *FileDTO `json:"file"`
+	PresignedURL  string            `json:"presigned_url"`
+	UploadHeaders map[string]string `json:"upload_headers,omitempty"`
+	File          *FileDTO          `json:"file"`
 }
 
 // ListResponse is returned by the file listing endpoint. NextCursor is empty
