@@ -6,7 +6,7 @@ type Status string
 
 const (
 	StatusPending  Status = "pending"
-	StatusReady    Status = "ready"
+	StatusUploaded Status = "uploaded"
 	StatusRejected Status = "rejected"
 	StatusDeleted  Status = "deleted"
 )
@@ -36,5 +36,5 @@ type File struct {
 }
 
 func (f *File) CanBeDownloaded() bool {
-	return f.Status == StatusReady
+	return f.Status == StatusUploaded
 }

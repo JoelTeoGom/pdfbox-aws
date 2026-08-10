@@ -2,7 +2,11 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"pdf-box-aws/internal/domain"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type API struct {
@@ -73,13 +77,16 @@ func (api *API) Save(ctx context.Context, userId, filename string, size int64, m
 	if mime != "application/pdf" {
 		return nil, domain.ErrInvalidMimeType
 	}
-
+	fileID := uuid.New().String()
 	file := &domain.File{
-		OwnerID:  userId,
-		Filename: filename,
-		Size:     size,
-		Mime:     mime,
-		Status:   domain.StatusPending,
+		ID:        fileID,
+		OwnerID:   userId,
+		S3Key:     fmt.Sprintf("users/%s/%s.pdf", userId, fileID),
+		Filename:  filename,
+		Size:      size,
+		Mime:      mime,
+		Status:    domain.StatusPending,
+		CreatedAt: time.Now(),
 	}
 	if err := api.repo.Save(ctx, file); err != nil {
 		return nil, err

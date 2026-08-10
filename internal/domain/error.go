@@ -7,6 +7,7 @@ var (
 	ErrInvalidInput    = errors.New("invalid input")
 	ErrFileTooLarge    = errors.New("file exceeds the maximum allowed size")
 	ErrInvalidMimeType = errors.New("invalid content type")
+	ErrNotFound        = errors.New("resource not found")
 
 	// Lookup and access
 	ErrFileNotFound = errors.New("file not found")
