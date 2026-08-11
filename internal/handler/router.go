@@ -3,8 +3,11 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"strconv"
 	"strings"
+
+	"pdf-box-aws/internal/domain"
 
 	"github.com/aws/aws-lambda-go/events"
 )
@@ -44,14 +47,13 @@ func NewRouter(api *API, auth TokenValidator) *Router {
 		auth: auth,
 	}
 }
+
 func (r *Router) HandleRequest(ctx context.Context, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
 	// Validate the JWT token from the request headers
 	claims, err := r.auth.ValidateToken(bearerToken(req.Headers))
 	if err != nil {
-		return &events.APIGatewayV2HTTPResponse{
-			StatusCode: 401,
-			Body:       "Unauthorized",
-		}, nil
+		// The reason a token failed is not the caller's business.
+		return errorResponse(ctx, domain.ErrUnauthorized), nil
 	}
 
 	switch req.RouteKey {
@@ -64,43 +66,22 @@ func (r *Router) HandleRequest(ctx context.Context, req events.APIGatewayV2HTTPR
 	case "DELETE /files/{fileID}":
 		return r.handleDeleteFile(ctx, claims.UserID, req)
 	default:
-		return &events.APIGatewayV2HTTPResponse{
-			StatusCode: 404,
-			Body:       "Not Found",
-		}, nil
+		return jsonResponse(http.StatusNotFound, ErrorResponse{Error: "route not found"}), nil
 	}
 }
 
 func (r *Router) handleGetFile(ctx context.Context, userID string, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
 	fileID := req.PathParameters["fileID"]
+
 	file, presignedURL, err := r.API.Get(ctx, userID, fileID)
 	if err != nil {
-		return &events.APIGatewayV2HTTPResponse{
-			StatusCode: 500,
-			Body:       "Internal Server Error",
-		}, nil
-	}
-	if file == nil {
-		return &events.APIGatewayV2HTTPResponse{
-			StatusCode: 404,
-			Body:       "File Not Found",
-		}, nil
+		return errorResponse(ctx, err), nil
 	}
 
-	body, err := json.Marshal(FileResponse{
+	return jsonResponse(http.StatusOK, FileResponse{
 		PresignedURL: presignedURL,
 		File:         toFileDTO(file),
-	})
-	if err != nil {
-		return &events.APIGatewayV2HTTPResponse{
-			StatusCode: 500,
-			Body:       "Internal Server Error",
-		}, nil
-	}
-	return &events.APIGatewayV2HTTPResponse{
-		StatusCode: 200,
-		Body:       string(body),
-	}, nil
+	}), nil
 }
 
 func (r *Router) handleUploadFile(ctx context.Context, userID string, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
@@ -110,37 +91,21 @@ func (r *Router) handleUploadFile(ctx context.Context, userID string, req events
 		Mime     string `json:"mime"`
 	}
 	if err := json.Unmarshal([]byte(req.Body), &uploadReq); err != nil {
-		return &events.APIGatewayV2HTTPResponse{
-			StatusCode: 400,
-			Body:       "Invalid Request Body",
-		}, nil
+		return badRequest("invalid request body"), nil
 	}
 
 	file, presignedURL, err := r.API.Save(ctx, userID, uploadReq.Filename, uploadReq.Size, uploadReq.Mime)
 	if err != nil {
-		return &events.APIGatewayV2HTTPResponse{
-			StatusCode: 500,
-			Body:       "Internal Server Error",
-		}, nil
+		return errorResponse(ctx, err), nil
 	}
 
-	body, err := json.Marshal(FileResponse{
+	return jsonResponse(http.StatusCreated, FileResponse{
 		PresignedURL: presignedURL,
 		// The body must be exactly file.Size bytes: Content-Length is signed too,
 		// but browsers derive it from the body and refuse to let scripts set it.
 		UploadHeaders: map[string]string{"Content-Type": file.Mime},
 		File:          toFileDTO(file),
-	})
-	if err != nil {
-		return &events.APIGatewayV2HTTPResponse{
-			StatusCode: 500,
-			Body:       "Internal Server Error",
-		}, nil
-	}
-	return &events.APIGatewayV2HTTPResponse{
-		StatusCode: 201,
-		Body:       string(body),
-	}, nil
+	}), nil
 }
 
 func (r *Router) handleListFiles(ctx context.Context, userID string, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
@@ -148,50 +113,28 @@ func (r *Router) handleListFiles(ctx context.Context, userID string, req events.
 	if raw := req.QueryStringParameters["limit"]; raw != "" {
 		parsed, err := strconv.Atoi(raw)
 		if err != nil || parsed <= 0 {
-			return &events.APIGatewayV2HTTPResponse{
-				StatusCode: 400,
-				Body:       "Invalid limit",
-			}, nil
+			return badRequest("limit must be a positive integer"), nil
 		}
 		limit = min(parsed, maxListLimit)
 	}
 
 	files, nextCursor, err := r.API.List(ctx, userID, req.QueryStringParameters["cursor"], limit)
 	if err != nil {
-		return &events.APIGatewayV2HTTPResponse{
-			StatusCode: 500,
-			Body:       "Internal Server Error",
-		}, nil
+		return errorResponse(ctx, err), nil
 	}
 
-	body, err := json.Marshal(ListResponse{
+	return jsonResponse(http.StatusOK, ListResponse{
 		Items:      toFileDTOs(files),
 		NextCursor: nextCursor,
-	})
-	if err != nil {
-		return &events.APIGatewayV2HTTPResponse{
-			StatusCode: 500,
-			Body:       "Internal Server Error",
-		}, nil
-	}
-	return &events.APIGatewayV2HTTPResponse{
-		StatusCode: 200,
-		Body:       string(body),
-	}, nil
+	}), nil
 }
 
 func (r *Router) handleDeleteFile(ctx context.Context, userID string, req events.APIGatewayV2HTTPRequest) (*events.APIGatewayV2HTTPResponse, error) {
 	fileID := req.PathParameters["fileID"]
-	err := r.API.MarkDeleted(ctx, userID, fileID)
-	if err != nil {
-		return &events.APIGatewayV2HTTPResponse{
-			StatusCode: 500,
-			Body:       "Internal Server Error",
-		}, nil
+
+	if err := r.API.MarkDeleted(ctx, userID, fileID); err != nil {
+		return errorResponse(ctx, err), nil
 	}
 
-	return &events.APIGatewayV2HTTPResponse{
-		StatusCode: 200,
-		Body:       "File Deleted",
-	}, nil
+	return &events.APIGatewayV2HTTPResponse{StatusCode: http.StatusNoContent}, nil
 }

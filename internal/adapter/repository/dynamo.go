@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"pdf-box-aws/internal/domain"
-	"pdf-box-aws/internal/handler"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -19,8 +18,6 @@ type DynamoDbRepo struct {
 	client    *dynamodb.Client
 	tableName string
 }
-
-var _ handler.FileRepository = (*DynamoDbRepo)(nil)
 
 func NewDynamoDBStore(ctx context.Context, tableName string) *DynamoDbRepo {
 	cfg, err := config.LoadDefaultConfig(ctx)
@@ -93,7 +90,7 @@ func (r *DynamoDbRepo) List(ctx context.Context, userID, cursor string, limit in
 			":prefix": &types.AttributeValueMemberS{Value: "FILE#"},
 		},
 		Limit:                  aws.Int32(int32(limit)),
-		ScanIndexForward:       aws.Bool(false), // descendente
+		ScanIndexForward:       aws.Bool(false), // newest first
 		ReturnConsumedCapacity: types.ReturnConsumedCapacityTotal,
 	}
 
@@ -106,10 +103,10 @@ func (r *DynamoDbRepo) List(ctx context.Context, userID, cursor string, limit in
 	}
 
 	out, err := r.client.Query(ctx, in)
-	next := EncodeCursor(out.LastEvaluatedKey) // "" si no hay más
 	if err != nil {
 		return nil, "", fmt.Errorf("dynamo query: %w", err)
 	}
+	next := EncodeCursor(out.LastEvaluatedKey) // "" when there are no more pages
 
 	files := make([]*domain.File, 0, len(out.Items))
 	for _, item := range out.Items {
