@@ -52,6 +52,9 @@ func (api *API) Get(ctx context.Context, userID, fileID string) (*domain.File, s
 	if file == nil {
 		return nil, "", domain.ErrFileNotFound
 	}
+	if !file.CanBeDownloaded() {
+		return nil, "", domain.ErrNotReady
+	}
 	presignedURL, err := api.s3.PresignDownload(ctx, file.S3Key)
 	if err != nil {
 		return nil, "", err

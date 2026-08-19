@@ -31,4 +31,5 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.45.4 // indirect
 	github.com/aws/smithy-go v1.27.6 // indirect
+	github.com/oklog/ulid/v2 v2.1.2 // indirect
 )
