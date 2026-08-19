@@ -16,6 +16,7 @@ const (
 	StatusUploaded Status = "uploaded"
 	StatusRejected Status = "rejected"
 	StatusDeleted  Status = "deleted"
+	StatusTrashed  Status = "trashed"
 )
 
 const (

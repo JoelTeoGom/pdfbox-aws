@@ -60,12 +60,49 @@ The response deliberately omits the S3 key and the owner ID. The key is an infra
 ## Upload flow
 
 1. The client calls `POST /files` declaring filename, size and MIME type.
-2. The API validates them, generates a UUID, builds the key `users/<user_id>/<uuid>.pdf`, and writes a DynamoDB record with status `pending`.
+2. The API validates them, generates a ULID, builds the key `users/<user_id>/<ulid>.pdf`, and writes a DynamoDB record with status `pending`.
 3. The API signs a `PUT` URL pinned to that key, with `Content-Type` and the exact `Content-Length` included in the signature, and returns it.
 4. The browser `PUT`s the bytes straight to S3.
 5. S3 emits `s3:ObjectCreated:*` to an SQS queue.
 6. The worker Lambda consumes the message, parses the user and file IDs back out of the object key, loads the record, and checks the object's real size against the record and against the 50 MB ceiling.
 7. On success the record moves to `uploaded`. On failure it moves to `rejected` and the object is deleted from S3 immediately.
+
+### Failure modes
+
+Every step between the client's request and the record reaching `uploaded` can fail on its own. This is the full set, with the state each one leaves behind and what recovers it.
+
+| # | Failure | State left behind | Recovery |
+|---|---------|-------------------|----------|
+| 1 | Validation rejects the request | Nothing written | `4xx`, nothing to clean up |
+| 2 | DynamoDB `PutItem` fails | Nothing written | `5xx`, or `409` on an ID collision; nothing to clean up |
+| 3 | Client disconnects before the response arrives | `pending` record, no object | Reconciliation sweep |
+| 4 | Signing fails after the record is written | `pending` record, no object | Reconciliation sweep |
+| 5 | Client receives the URL and never uploads | `pending` record, no object | Reconciliation sweep |
+| 6 | S3 rejects the `PUT` (size or type ≠ signature) | `pending` record, no object | Reconciliation sweep |
+| 7 | Upload succeeds, the S3 event never arrives | `pending` record, **object present** | Sweep promotes the record to `uploaded` |
+| 8 | Worker fails transiently (throttling, timeout) | `pending` record, object present | SQS redelivery via partial batch failure |
+| 9 | Worker reads the record before it is visible | `pending` record, object present | Retried for the first three receives, then treated as an orphan |
+| 10 | Event body or object key is unparseable | Object present, no usable record | Permanent failure: the object is deleted and the message dropped |
+| 11 | The same event is delivered twice | Record already `uploaded` | Worker is idempotent; a non-`pending` record is left alone |
+| 12 | Worker keeps failing past `maxReceiveCount` | `pending` record, object present | Message to the DLQ; the sweep still reconciles the pair |
+| 13 | File is deleted while its upload is in flight | `deleted` record, **object present** | Sweep collects the orphan; the worker could delete it on the spot instead |
+
+**Row 3 is the one worth spelling out, because a closed tab cancels nothing.** The `context.Context` a Lambda handler receives is built by the runtime from the `Lambda-Runtime-Deadline-Ms` header, so it carries the invocation deadline and nothing else. API Gateway does not propagate client disconnects to its integration. The invocation therefore runs to completion — it writes the `pending` record, signs the URL, and returns a response that API Gateway drops on the floor, because the socket it would write to no longer exists. From the backend's point of view the request succeeded and the URL was delivered. Nothing in the request path ever learns otherwise.
+
+**Rows 3 through 7 all leave a `pending` record, and that is exactly why the sweep cannot just delete old ones.** They do not mean the same thing, and only S3 can tell them apart, so the sweep asks it before deciding:
+
+- **Object present** — the upload worked and the event was lost (row 7). Promote the record to `uploaded`. This is the self-healing case, and it is the reason a `pending` record is never deleted on age alone.
+- **No object, and older than the grace window** — the upload never happened (rows 3 to 6). Delete the record.
+
+The grace window has to clear the presigned URL's 15-minute TTL, plus the transfer itself, plus event delivery latency. One hour covers all three comfortably, and the sweep runs daily. A `pending` record younger than the window is an upload that may still be in progress, not garbage.
+
+### What the queue configuration has to guarantee
+
+Rows 8, 9 and 12 are handled in code, but the code only works if the queue is set up to match it:
+
+- The event source mapping must declare `FunctionResponseTypes: ["ReportBatchItemFailures"]`. Without it the `BatchItemFailures` the worker returns are ignored outright, and an invocation that returns no error deletes the entire batch — including the messages the worker explicitly asked to have redelivered.
+- `maxReceiveCount` on the redrive policy must be greater than 3. The worker spends the first three receives waiting out DynamoDB's eventual consistency (row 9); a lower count sends the message to the dead-letter queue before that logic has a chance to finish.
+- The visibility timeout must be at least the worker's timeout, or a slow invocation gets its own message redelivered while it is still processing it.
 
 ### Why the confirmation event comes from S3, not the client
 
@@ -107,7 +144,7 @@ Lifecycle rules still earn their place for things that need no external knowledg
 
 **Authorization is structural, not procedural.** The JWT's user claim is what builds the DynamoDB partition key. A request for another user's file does not fail an ownership check — it queries a partition the requester does not own and comes back empty. There is no `if file.OwnerID != claims.UserID` to forget, because there is no code path where the wrong user's data is in hand to be checked.
 
-**Server-generated S3 keys.** Keys are `users/<user_id>/<uuid>.pdf`, built server-side from the token claim and a fresh UUID. The client-supplied filename is display metadata that never touches the key. Using it directly would let a client submit `../../users/other/file.pdf` and write outside its own prefix. The prefix then does triple duty: it scopes IAM policies per user, it distributes load across S3 partitions, and it carries the user ID inside the S3 event so the worker can find the record without a lookup table.
+**Server-generated S3 keys.** Keys are `users/<user_id>/<ulid>.pdf`, built server-side from the token claim and a fresh ULID. The ID is a ULID rather than a UUID because the listing pages straight off the sort key: a random UUID would page in arbitrary order, while a ULID's leading timestamp makes a descending key scan mean "newest first". The client-supplied filename is display metadata that never touches the key. Using it directly would let a client submit `../../users/other/file.pdf` and write outside its own prefix. The prefix then does triple duty: it scopes IAM policies per user, it distributes load across S3 partitions, and it carries the user ID inside the S3 event so the worker can find the record without a lookup table.
 
 The layout is defined once, in `domain.S3KeyFor`, with `domain.ParseS3Key` as its inverse right next to it. Two independent definitions of the same path is how the key and the record drift apart.
 
@@ -130,10 +167,9 @@ The layout is defined once, in `domain.S3KeyFor`, with `domain.ParseS3Key` as it
 
 The diagram marks these with dashed borders:
 
-- The reconciliation Lambda and its EventBridge Scheduler rule. The design above describes the intended behaviour; no third binary exists yet.
+- The reconciliation Lambda and its EventBridge Scheduler rule. The design above describes the intended behaviour; `cmd/event-bridge` exists but is empty.
 - The DynamoDB TTL that purges trashed records after a retention window. The `expiresAt` attribute exists on the item but is never written.
 - A restore-from-trash route.
-- HTTP error mapping. Every handler currently returns `500` on any error, so a missing file surfaces as `500` rather than `404`.
 
 ## Running it
 
