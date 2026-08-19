@@ -36,6 +36,8 @@ func statusFor(err error) int {
 		return http.StatusConflict
 	case errors.Is(err, domain.ErrNotReady):
 		return http.StatusConflict
+	case errors.Is(err, domain.ErrFileTrashed):
+		return http.StatusGone
 	default:
 		return http.StatusInternalServerError
 	}

@@ -30,4 +30,5 @@ func NewEventBridgeScheduler(ctx context.Context, busName string, s3 *storage.S3
 }
 
 func (e *EventBridgeScheduler) FileSweeperHandler(ctx context.Context) error {
+	return nil
 }

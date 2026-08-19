@@ -25,6 +25,8 @@ const (
 
 	// MimeTypePDF is the only content type this service stores
 	MimeTypePDF = "application/pdf"
+
+	DefaultTrashRetention = 24 * time.Hour
 )
 
 type File struct {
@@ -36,6 +38,11 @@ type File struct {
 	Mime      string
 	Status    Status
 	CreatedAt time.Time
+
+	TrashedAt      time.Time
+	TrashExpiresAt time.Time
+
+	S3Deleted bool
 }
 
 // NewFileID returns an identifier that sorts chronologically as a string. The
@@ -47,6 +54,17 @@ func NewFileID() string {
 
 func (f *File) CanBeDownloaded() bool {
 	return f.Status == StatusUploaded
+}
+func (f *File) CanBeTrashed() bool {
+	return f.Status == StatusUploaded
+}
+
+func (f *File) CanBeRestored() bool {
+	return f.Status == StatusTrashed
+}
+
+func (f *File) IsTrashed() bool {
+	return f.Status == StatusTrashed
 }
 
 // S3KeyFor builds the object key under which a user's file is stored. This is

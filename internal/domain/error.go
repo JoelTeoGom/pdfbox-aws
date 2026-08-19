@@ -15,6 +15,7 @@ var (
 
 	// Lifecycle
 	ErrNotReady         = errors.New("file not ready")
+	ErrFileTrashed      = errors.New("file is in the trash")
 	ErrInvalidStatus    = errors.New("invalid status transition")
 	ErrAlreadyProcessed = errors.New("file already processed")
 )

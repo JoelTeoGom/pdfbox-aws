@@ -29,5 +29,5 @@ func main() {
 	dynamodb := repository.NewDynamoDBStore(ctx, tableName)
 	s3 := storage.NewS3Service(ctx, s3Bucket)
 	bus := handler.NewEventBridgeScheduler(ctx, eventBusName, s3, dynamodb)
-	lambda.Start(bus.SweeperHandler)
+	lambda.Start(bus.FileSweeperHandler)
 }
