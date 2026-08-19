@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/oklog/ulid/v2"
 )
 
 type Status string
@@ -33,6 +35,13 @@ type File struct {
 	Mime      string
 	Status    Status
 	CreatedAt time.Time
+}
+
+// NewFileID returns an identifier that sorts chronologically as a string. The
+// listing pages straight off the sort key, so the ID is what carries the
+// creation order: a random UUID here would page in arbitrary order.
+func NewFileID() string {
+	return ulid.Make().String()
 }
 
 func (f *File) CanBeDownloaded() bool {

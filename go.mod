@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.63.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.107.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
-	github.com/google/uuid v1.6.0
+	github.com/oklog/ulid/v2 v2.1.2
 )
 
 require (
@@ -31,5 +31,4 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.45.4 // indirect
 	github.com/aws/smithy-go v1.27.6 // indirect
-	github.com/oklog/ulid/v2 v2.1.2 // indirect
 )

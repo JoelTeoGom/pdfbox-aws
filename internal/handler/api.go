@@ -4,8 +4,6 @@ import (
 	"context"
 	"pdf-box-aws/internal/domain"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type API struct {
@@ -80,7 +78,7 @@ func (api *API) Save(ctx context.Context, userId, filename string, size int64, m
 	if mime != domain.MimeTypePDF {
 		return nil, "", domain.ErrInvalidMimeType
 	}
-	fileID := uuid.New().String()
+	fileID := domain.NewFileID()
 	file := &domain.File{
 		ID:        fileID,
 		OwnerID:   userId,
